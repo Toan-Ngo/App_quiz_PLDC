@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trắc nghiệm Pháp luật đại cương</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #eef2f7;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            background: white;
+            border-radius: 25px;
+            padding: 25px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #1e466e;
+        }
+
+        .test-selector {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .test-selector select {
+            padding: 10px 15px;
+            font-size: 16px;
+            border-radius: 10px;
+            border: 2px solid #3498db;
+            outline: none;
+            cursor: pointer;
+            font-family: inherit;
+            color: #1e466e;
+            font-weight: bold;
+        }
+
+        .test-selector select:hover {
+            border-color: #1e466e;
+        }
+
+        .stats {
+            text-align: center;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .status-summary {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 16px;
+            color: #333;
+        }
+
+        .status-summary table {
+            margin: auto;
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        .status-summary th,
+        .status-summary td {
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            text-align: center;
+        }
+
+        .status-summary th {
+            background: #f3f4f6;
+            color: #111827;
+        }
+
+        .status-summary td {
+            background: #ffffff;
+            color: #1f2937;
+            font-weight: bold;
+        }
+
+        .main-layout {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        .quiz-section {
+            flex: 1;
+            min-width: 0;
+        }
+
+        /* ĐÃ SỬA: Giới hạn chiều cao sidebar để có thể cuộn thanh trạng thái độc lập */
+        .sidebar {
+            width: 320px;
+            position: sticky;
+            top: 20px;
+            align-self: flex-start;
+            max-height: 95vh;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+        
+        /* Tùy chỉnh thanh cuộn cho sidebar */
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .sidebar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        .sidebar h2 {
+            margin: 0 0 12px 0;
+            font-size: 18px;
+            color: #1e466e;
+        }
+
+        .status-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        @media (max-width: 960px) {
+            .main-layout {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                position: static;
+                width: 100%;
+                max-height: 300px; /* Nhỏ lại trên điện thoại */
+            }
+        }
+
+        .status-cell {
+            width: 42px;
+            height: 42px;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #111827;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .status-cell:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+        }
+
+        .status-cell.answered {
+            background: #d1fae5;
+            border-color: #10b981;
+        }
+
+        .status-cell.doubt {
+            background: #fde68a !important; /* Ưu tiên màu vàng nếu có do dự */
+            border-color: #f59e0b !important;
+        }
+
+        .status-cell.wrong {
+            background: #fecaca;
+            border-color: #ef4444;
+        }
+
+        .status-cell.unanswered {
+            background: #ffffff;
+            border-color: #d1d5db;
+        }
+
+        .quiz-card {
+            background: white;
+            border-left: 6px solid #3498db;
+            padding: 20px;
+            margin-bottom: 25px;
+            border-radius: 18px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .quiz-card.correct {
+            border-left-color: #27ae60;
+            background: #f0fff4;
+        }
+
+        .quiz-card.incorrect {
+            border-left-color: #e74c3c;
+            background: #fff5f5;
+        }
+
+        .question-text {
+            font-weight: bold;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .option {
+            display: flex;
+            gap: 10px;
+            cursor: pointer;
+            padding: 5px 0;
+        }
+
+        .feedback {
+            margin-top: 15px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 14px;
+        }
+
+        .correct-fb {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .wrong-fb {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .submit-area {
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        .submit-btn {
+            background: #1e466e;
+            color: white;
+            border: none;
+            padding: 14px 35px;
+            border-radius: 40px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .submit-btn:hover {
+            background: #163754;
+        }
+
+        .result {
+            margin-top: 20px;
+            font-size: 22px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .loading-text {
+            text-align: center;
+            font-size: 18px;
+            color: #555;
+            margin: 20px 0;
+        }
+
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>📚 Trắc nghiệm Pháp luật đại cương</h1>
+
+    <div class="test-selector">
+        <label for="testSelect" style="font-weight: bold; margin-right: 10px;">Chọn bộ câu hỏi: </label>
+        <select id="testSelect" onchange="changeTest()">
+            <option value="./questions_430.json">Đề 430 câu</option>
+            <option value="./questions_700.json">Đề 700 câu</option>
+        </select>
+    </div>
+
+    <div class="main-layout">
+        <div class="quiz-section">
+            <div id="quizContainer"></div>
+        </div>
+
+        <aside class="sidebar">
+            <div class="stats" id="statsLabel"></div>
+            <div class="status-summary" id="statusSummary">
+                <!-- HTML của bảng tóm tắt sẽ được gen cố định ở đây -->
+                <table>
+                    <tr>
+                        <th>Đã làm</th>
+                        <th>Chưa làm</th>
+                        <th>Do dự</th>
+                    </tr>
+                    <tr>
+                        <td id="count-answered">0</td>
+                        <td id="count-unanswered">0</td>
+                        <td id="count-doubt">0</td>
+                    </tr>
+                </table>
+                <div class="status-grid" id="statusGrid"></div>
+            </div>
+        </aside>
+    </div>
+
+    <div class="submit-area">
+        <button class="submit-btn" onclick="submitQuiz()">
+            ✅ NỘP BÀI
+        </button>
+
+        <div class="result" id="resultArea"></div>
+    </div>
+
+</div>
+
+<script>
+    let questions = [];
+
+    const quizContainer = document.getElementById("quizContainer");
+    const resultArea = document.getElementById("resultArea");
+    const statsLabel = document.getElementById("statsLabel");
+    const testSelect = document.getElementById("testSelect");
+    const statusGrid = document.getElementById("statusGrid");
+
+    // =========================
+    // LOAD JSON TỰ ĐỘNG THEO FILE URL
+    // =========================
+    async function loadQuestions(fileUrl) {
+        // Reset giao diện
+        quizContainer.innerHTML = `<div class="loading-text">⏳ Đang tải dữ liệu...</div>`;
+        resultArea.innerHTML = "";
+        statsLabel.innerHTML = "";
+        statusGrid.innerHTML = "";
+        
+        document.getElementById('count-answered').innerText = '0';
+        document.getElementById('count-unanswered').innerText = '0';
+        document.getElementById('count-doubt').innerText = '0';
+
+        try {
+            const response = await fetch(fileUrl);
+            if (!response.ok) {
+                throw new Error(`Không tìm thấy file ${fileUrl}. (Nếu bạn chạy file HTML trực tiếp trên máy tính bằng cách double-click, trình duyệt có thể chặn file JSON vì lý do bảo mật CORS. Hãy dùng Live Server của VSCode).`);
+            }
+
+            questions = await response.json();
+            questions.forEach(q => {
+                q.doubt = false;
+                q.selectedValue = null;
+                q.result = ""; // "correct", "wrong" hoặc rỗng
+            });
+
+            renderQuiz();
+
+        } catch (err) {
+            quizContainer.innerHTML = `
+                <div class="loading-text" style="color: #e74c3c;">
+                    ❌ Lỗi tải JSON:
+                    <br><br>
+                    ${err.message}
+                </div>
+            `;
+            console.error(err);
+        }
+    }
+
+    function changeTest() {
+        const selectedFile = testSelect.value;
+        loadQuestions(selectedFile);
+    }
+
+    // =========================
+    // A/B/C/D -> 0/1/2/3
+    // =========================
+    function normalizeAnswer(ans) {
+        if (ans === undefined || ans === null) return -1;
+        ans = ans.toString().trim().toUpperCase();
+        if (ans === "A") return 0;
+        if (ans === "B") return 1;
+        if (ans === "C") return 2;
+        if (ans === "D") return 3;
+        return parseInt(ans);
+    }
+
+    // =========================
+    // HIỂN THỊ QUIZ & LƯỚI NÚT
+    // =========================
+    function renderQuiz() {
+        statsLabel.innerHTML = `📚 Tổng số câu: ${questions.length}`;
+        document.getElementById('count-unanswered').innerText = questions.length;
+
+        // Tối ưu hóa: Dùng mảng push() và join('') sẽ nhanh hơn cộng chuỗi += nhiều lần với dữ liệu lớn
+        let htmlChunks = [];
+        let gridHtmlChunks = [];
+
+        questions.forEach((q, index) => {
+            // Render Quiz Card
+            htmlChunks.push(`
+                <div class="quiz-card" id="card-${index}">
+                    <div class="question-text">
+                        ${index + 1}. ${q.question}
+                    </div>
+                    <div class="options">
+            `);
+
+            q.options.forEach((opt, optIndex) => {
+                htmlChunks.push(`
+                    <label class="option">
+                        <input type="radio" name="q${index}" value="${optIndex}" onchange="handleSelection(${index})">
+                        <span>${opt}</span>
+                    </label>
+                `);
+            });
+
+            htmlChunks.push(`
+                    </div>
+                    <div style="margin-top: 12px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <label style="font-size: 14px; color: #333; cursor: pointer;">
+                            <input type="checkbox" id="doubt-${index}" onchange="toggleDoubt(${index})">
+                            Đánh dấu do dự
+                        </label>
+                        <span id="status-${index}" style="font-size: 14px; color: #e67e22; font-weight: bold;"></span>
+                    </div>
+                    <div id="feedback-${index}"></div>
+                </div>
+            `);
+
+            // Render Status Grid Button (Vẽ 1 lần duy nhất)
+            gridHtmlChunks.push(`
+                <button type="button" class="status-cell unanswered" id="nav-btn-${index}" onclick="scrollToQuestion(${index})" title="Câu ${index + 1}">
+                    ${index + 1}
+                </button>
+            `);
+        });
+
+        quizContainer.innerHTML = htmlChunks.join('');
+        statusGrid.innerHTML = gridHtmlChunks.join('');
+    }
+
+    // =========================
+    // XỬ LÝ LỰA CHỌN VÀ DO DỰ (KHÔNG VẼ LẠI TOÀN BỘ)
+    // =========================
+    function handleSelection(index) {
+        const selected = document.querySelector(`input[name="q${index}"]:checked`);
+        questions[index].selectedValue = selected ? parseInt(selected.value) : null;
+        
+        // Xóa trạng thái wrong nếu người dùng đổi đáp án sau khi nộp
+        if (questions[index].result === "wrong") {
+            questions[index].result = "";
+        }
+        
+        updateSpecificButton(index);
+        updateCounters();
+    }
+
+    function toggleDoubt(index) {
+        const checkbox = document.getElementById(`doubt-${index}`);
+        questions[index].doubt = checkbox.checked;
+        
+        const statusLabel = document.getElementById(`status-${index}`);
+        if (statusLabel) {
+            statusLabel.textContent = questions[index].doubt ? "(Đã đánh dấu do dự)" : "";
+        }
+
+        updateSpecificButton(index);
+        updateCounters();
+    }
+
+    // Chỉ cập nhật class của ĐÚNG 1 cái nút bên sidebar (Chống lag hoàn toàn)
+    function updateSpecificButton(index) {
+        const q = questions[index];
+        const btn = document.getElementById(`nav-btn-${index}`);
+        if (!btn) return;
+
+        // Gỡ bỏ hết class cũ
+        btn.classList.remove('answered', 'unanswered', 'doubt', 'wrong');
+
+        // Thêm class mới theo độ ưu tiên
+        if (q.doubt) {
+            btn.classList.add('doubt'); // Đánh dấu do dự thì luôn hiển thị màu vàng
+        } else if (q.result === "wrong") {
+            btn.classList.add('wrong');
+        } else if (q.selectedValue !== null) {
+            btn.classList.add('answered');
+        } else {
+            btn.classList.add('unanswered');
+        }
+    }
+
+    // Đếm lại số liệu cho bảng tóm tắt
+    function updateCounters() {
+        let answered = 0;
+        let doubted = 0;
+
+        questions.forEach(q => {
+            if (q.selectedValue !== null) answered++;
+            if (q.doubt) doubted++;
+        });
+
+        document.getElementById('count-answered').innerText = answered;
+        document.getElementById('count-unanswered').innerText = questions.length - answered;
+        document.getElementById('count-doubt').innerText = doubted;
+    }
+
+    function scrollToQuestion(index) {
+        const card = document.getElementById(`card-${index}`);
+        if (card) {
+            card.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+    }
+
+    // =========================
+    // NỘP BÀI
+    // =========================
+    function submitQuiz() {
+        let correctCount = 0;
+
+        questions.forEach((q, index) => {
+            const correctIndex = normalizeAnswer(q.answer);
+            const selected = document.querySelector(`input[name="q${index}"]:checked`);
+            const card = document.getElementById(`card-${index}`);
+            const feedback = document.getElementById(`feedback-${index}`);
+
+            // Reset class card
+            card.classList.remove("correct", "incorrect");
+            
+            // Xử lý an toàn nếu JSON bị lỗi không có text cho đáp án đó
+            const correctText = (q.options && q.options[correctIndex]) ? q.options[correctIndex] : "Không xác định";
+
+            if (!selected) {
+                q.selectedValue = null;
+                q.result = "";
+                feedback.innerHTML = `
+                    <div class="feedback wrong-fb">
+                        ⚠️ Chưa chọn
+                        <br>
+                        ✅ Đáp án đúng: ${correctText}
+                    </div>
+                `;
+            } else {
+                const selectedValue = parseInt(selected.value);
+                q.selectedValue = selectedValue;
+
+                if (selectedValue === correctIndex) {
+                    q.result = "correct";
+                    correctCount++;
+                    card.classList.add("correct");
+                    feedback.innerHTML = `<div class="feedback correct-fb">✅ Chính xác</div>`;
+                } else {
+                    q.result = "wrong";
+                    card.classList.add("incorrect");
+                    feedback.innerHTML = `
+                        <div class="feedback wrong-fb">
+                            ❌ Sai
+                            <br>
+                            ✅ Đáp án đúng: ${correctText}
+                        </div>
+                    `;
+                }
+            }
+
+            // Cập nhật lại màu nút sau khi chấm điểm
+            updateSpecificButton(index);
+        });
+
+        updateCounters();
+
+        // Tính điểm
+        const percent = (correctCount / questions.length) * 100;
+        let rank = "";
+        if (percent >= 90) rank = "🏆 Xuất sắc";
+        else if (percent >= 75) rank = "🥇 Giỏi";
+        else if (percent >= 50) rank = "🥈 Khá";
+        else if (percent >= 30) rank = "🥉 Trung bình";
+        else rank = "❌ Yếu";
+
+        resultArea.innerHTML = `
+            🎯 ${correctCount}/${questions.length} câu đúng
+            <br>
+            📊 ${percent.toFixed(1)}%
+            <br>
+            ${rank}
+        `;
+
+        resultArea.scrollIntoView({ behavior: "smooth" });
+    }
+
+    // Load mặc định
+    loadQuestions(testSelect.value);
+
+</script>
+
+</body>
+</html>
