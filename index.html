@@ -102,7 +102,6 @@
             min-width: 0;
         }
 
-        /* ĐÃ SỬA: Giới hạn chiều cao sidebar để có thể cuộn thanh trạng thái độc lập */
         .sidebar {
             width: 320px;
             position: sticky;
@@ -113,7 +112,6 @@
             padding-right: 5px;
         }
         
-        /* Tùy chỉnh thanh cuộn cho sidebar */
         .sidebar::-webkit-scrollbar {
             width: 6px;
         }
@@ -144,7 +142,7 @@
             .sidebar {
                 position: static;
                 width: 100%;
-                max-height: 300px; /* Nhỏ lại trên điện thoại */
+                max-height: 300px;
             }
         }
 
@@ -171,7 +169,7 @@
         }
 
         .status-cell.doubt {
-            background: #fde68a !important; /* Ưu tiên màu vàng nếu có do dự */
+            background: #fde68a !important;
             border-color: #f59e0b !important;
         }
 
@@ -254,10 +252,28 @@
             font-size: 16px;
             font-weight: bold;
             cursor: pointer;
+            transition: background 0.2s;
         }
 
         .submit-btn:hover {
             background: #163754;
+        }
+
+        .reset-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 14px 35px;
+            border-radius: 40px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-left: 10px;
+            transition: background 0.2s;
+        }
+
+        .reset-btn:hover {
+            background: #c0392b;
         }
 
         .result {
@@ -299,7 +315,6 @@
         <aside class="sidebar">
             <div class="stats" id="statsLabel"></div>
             <div class="status-summary" id="statusSummary">
-                <!-- HTML của bảng tóm tắt sẽ được gen cố định ở đây -->
                 <table>
                     <tr>
                         <th>Đã làm</th>
@@ -321,6 +336,9 @@
         <button class="submit-btn" onclick="submitQuiz()">
             ✅ NỘP BÀI
         </button>
+        <button class="reset-btn" onclick="resetQuiz()">
+            🔄 LÀM LẠI từ đầu
+        </button>
 
         <div class="result" id="resultArea"></div>
     </div>
@@ -340,7 +358,6 @@
     // LOAD JSON TỰ ĐỘNG THEO FILE URL
     // =========================
     async function loadQuestions(fileUrl) {
-        // Reset giao diện
         quizContainer.innerHTML = `<div class="loading-text">⏳ Đang tải dữ liệu...</div>`;
         resultArea.innerHTML = "";
         statsLabel.innerHTML = "";
@@ -357,13 +374,26 @@
             }
 
             questions = await response.json();
-            questions.forEach(q => {
-                q.doubt = false;
-                q.selectedValue = null;
-                q.result = ""; // "correct", "wrong" hoặc rỗng
+            
+            // Đọc dữ liệu đã lưu từ localStorage (nếu có)
+            const savedProgress = localStorage.getItem(`quiz_progress_${fileUrl}`);
+            const progress = savedProgress ? JSON.parse(savedProgress) : null;
+
+            questions.forEach((q, index) => {
+                if (progress && progress[index]) {
+                    q.doubt = progress[index].doubt || false;
+                    q.selectedValue = progress[index].selectedValue !== undefined ? progress[index].selectedValue : null;
+                    q.result = progress[index].result || ""; // "correct", "wrong", "unanswered" hoặc rỗng
+                } else {
+                    q.doubt = false;
+                    q.selectedValue = null;
+                    q.result = "";
+                }
             });
 
             renderQuiz();
+            updateCounters();
+            showSavedResult();
 
         } catch (err) {
             quizContainer.innerHTML = `
@@ -396,20 +426,35 @@
     }
 
     // =========================
-    // HIỂN THỊ QUIZ & LƯỚI NÚT
+    // LƯU TIẾN TRÌNH VÀO LOCALSTORAGE
+    // =========================
+    function saveProgress() {
+        const fileUrl = testSelect.value;
+        const progress = questions.map(q => ({
+            selectedValue: q.selectedValue,
+            doubt: q.doubt,
+            result: q.result
+        }));
+        localStorage.setItem(`quiz_progress_${fileUrl}`, JSON.stringify(progress));
+    }
+
+    // =========================
+    // HIỂN THỊ QUIZ & LƯỚI NÚT (Hỗ trợ khôi phục trạng thái cũ)
     // =========================
     function renderQuiz() {
         statsLabel.innerHTML = `📚 Tổng số câu: ${questions.length}`;
-        document.getElementById('count-unanswered').innerText = questions.length;
 
-        // Tối ưu hóa: Dùng mảng push() và join('') sẽ nhanh hơn cộng chuỗi += nhiều lần với dữ liệu lớn
         let htmlChunks = [];
         let gridHtmlChunks = [];
 
         questions.forEach((q, index) => {
-            // Render Quiz Card
+            // Xác định class của card dựa vào kết quả cũ (nếu có)
+            let cardClass = "quiz-card";
+            if (q.result === "correct") cardClass += " correct";
+            if (q.result === "wrong" || q.result === "unanswered") cardClass += " incorrect";
+
             htmlChunks.push(`
-                <div class="quiz-card" id="card-${index}">
+                <div class="${cardClass}" id="card-${index}">
                     <div class="question-text">
                         ${index + 1}. ${q.question}
                     </div>
@@ -417,30 +462,72 @@
             `);
 
             q.options.forEach((opt, optIndex) => {
+                // Khôi phục đáp án đã tích chọn trước đó
+                const isChecked = q.selectedValue === optIndex ? "checked" : "";
                 htmlChunks.push(`
                     <label class="option">
-                        <input type="radio" name="q${index}" value="${optIndex}" onchange="handleSelection(${index})">
+                        <input type="radio" name="q${index}" value="${optIndex}" onchange="handleSelection(${index})" ${isChecked}>
                         <span>${opt}</span>
                     </label>
                 `);
             });
 
+            // Khôi phục trạng thái do dự
+            const isDoubtChecked = q.doubt ? "checked" : "";
+            const doubtText = q.doubt ? "(Đã đánh dấu do dự)" : "";
+
+            // Khôi phục feedback giải thích đáp án đúng nếu trước đó đã nộp bài
+            let feedbackHtml = "";
+            const correctIndex = normalizeAnswer(q.answer);
+            const correctText = (q.options && q.options[correctIndex]) ? q.options[correctIndex] : "Không xác định";
+            
+            if (q.result === "correct") {
+                feedbackHtml = `<div class="feedback correct-fb">✅ Chính xác</div>`;
+            } else if (q.result === "wrong") {
+                feedbackHtml = `
+                    <div class="feedback wrong-fb">
+                        ❌ Sai
+                        <br>
+                        ✅ Đáp án đúng: ${correctText}
+                    </div>
+                `;
+            } else if (q.result === "unanswered") {
+                feedbackHtml = `
+                    <div class="feedback wrong-fb">
+                        ⚠️ Chưa chọn
+                        <br>
+                        ✅ Đáp án đúng: ${correctText}
+                    </div>
+                `;
+            }
+
             htmlChunks.push(`
                     </div>
                     <div style="margin-top: 12px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                         <label style="font-size: 14px; color: #333; cursor: pointer;">
-                            <input type="checkbox" id="doubt-${index}" onchange="toggleDoubt(${index})">
+                            <input type="checkbox" id="doubt-${index}" onchange="toggleDoubt(${index})" ${isDoubtChecked}>
                             Đánh dấu do dự
                         </label>
-                        <span id="status-${index}" style="font-size: 14px; color: #e67e22; font-weight: bold;"></span>
+                        <span id="status-${index}" style="font-size: 14px; color: #e67e22; font-weight: bold;">${doubtText}</span>
                     </div>
-                    <div id="feedback-${index}"></div>
+                    <div id="feedback-${index}">${feedbackHtml}</div>
                 </div>
             `);
 
-            // Render Status Grid Button (Vẽ 1 lần duy nhất)
+            // Khôi phục màu sắc các ô trạng thái ở Sidebar
+            let btnClass = "status-cell";
+            if (q.doubt) {
+                btnClass += " doubt";
+            } else if (q.result === "wrong" || q.result === "unanswered") {
+                btnClass += " wrong";
+            } else if (q.selectedValue !== null) {
+                btnClass += " answered";
+            } else {
+                btnClass += " unanswered";
+            }
+
             gridHtmlChunks.push(`
-                <button type="button" class="status-cell unanswered" id="nav-btn-${index}" onclick="scrollToQuestion(${index})" title="Câu ${index + 1}">
+                <button type="button" class="${btnClass}" id="nav-btn-${index}" onclick="scrollToQuestion(${index})" title="Câu ${index + 1}">
                     ${index + 1}
                 </button>
             `);
@@ -451,19 +538,19 @@
     }
 
     // =========================
-    // XỬ LÝ LỰA CHỌN VÀ DO DỰ (KHÔNG VẼ LẠI TOÀN BỘ)
+    // XỬ LÝ LỰA CHỌN VÀ DO DỰ
     // =========================
     function handleSelection(index) {
         const selected = document.querySelector(`input[name="q${index}"]:checked`);
         questions[index].selectedValue = selected ? parseInt(selected.value) : null;
         
-        // Xóa trạng thái wrong nếu người dùng đổi đáp án sau khi nộp
-        if (questions[index].result === "wrong") {
+        if (questions[index].result === "wrong" || questions[index].result === "unanswered") {
             questions[index].result = "";
         }
         
         updateSpecificButton(index);
         updateCounters();
+        saveProgress(); // Lưu ngay khi chọn
     }
 
     function toggleDoubt(index) {
@@ -477,21 +564,19 @@
 
         updateSpecificButton(index);
         updateCounters();
+        saveProgress(); // Lưu ngay khi đổi trạng thái do dự
     }
 
-    // Chỉ cập nhật class của ĐÚNG 1 cái nút bên sidebar (Chống lag hoàn toàn)
     function updateSpecificButton(index) {
         const q = questions[index];
         const btn = document.getElementById(`nav-btn-${index}`);
         if (!btn) return;
 
-        // Gỡ bỏ hết class cũ
         btn.classList.remove('answered', 'unanswered', 'doubt', 'wrong');
 
-        // Thêm class mới theo độ ưu tiên
         if (q.doubt) {
-            btn.classList.add('doubt'); // Đánh dấu do dự thì luôn hiển thị màu vàng
-        } else if (q.result === "wrong") {
+            btn.classList.add('doubt');
+        } else if (q.result === "wrong" || q.result === "unanswered") {
             btn.classList.add('wrong');
         } else if (q.selectedValue !== null) {
             btn.classList.add('answered');
@@ -500,7 +585,6 @@
         }
     }
 
-    // Đếm lại số liệu cho bảng tóm tắt
     function updateCounters() {
         let answered = 0;
         let doubted = 0;
@@ -534,15 +618,14 @@
             const card = document.getElementById(`card-${index}`);
             const feedback = document.getElementById(`feedback-${index}`);
 
-            // Reset class card
             card.classList.remove("correct", "incorrect");
             
-            // Xử lý an toàn nếu JSON bị lỗi không có text cho đáp án đó
             const correctText = (q.options && q.options[correctIndex]) ? q.options[correctIndex] : "Không xác định";
 
             if (!selected) {
                 q.selectedValue = null;
-                q.result = "";
+                q.result = "unanswered";
+                card.classList.add("incorrect");
                 feedback.innerHTML = `
                     <div class="feedback wrong-fb">
                         ⚠️ Chưa chọn
@@ -572,13 +655,29 @@
                 }
             }
 
-            // Cập nhật lại màu nút sau khi chấm điểm
             updateSpecificButton(index);
         });
 
         updateCounters();
+        saveProgress(); // Lưu trạng thái sau khi đã chấm điểm bài làm
+        showSavedResult();
 
-        // Tính điểm
+        resultArea.scrollIntoView({ behavior: "smooth" });
+    }
+
+    // Hiển thị khung điểm tổng quan ở dưới cùng
+    function showSavedResult() {
+        const isSubmitted = questions.some(q => q.result !== "");
+        if (!isSubmitted) {
+            resultArea.innerHTML = "";
+            return;
+        }
+
+        let correctCount = 0;
+        questions.forEach(q => {
+            if (q.result === "correct") correctCount++;
+        });
+
         const percent = (correctCount / questions.length) * 100;
         let rank = "";
         if (percent >= 90) rank = "🏆 Xuất sắc";
@@ -594,11 +693,16 @@
             <br>
             ${rank}
         `;
-
-        resultArea.scrollIntoView({ behavior: "smooth" });
     }
 
-    // Load mặc định
+    function resetQuiz() {
+        if (confirm("Bạn có chắc chắn muốn xóa hết đáp án đã làm để làm lại từ đầu bộ đề này không?")) {
+            const fileUrl = testSelect.value;
+            localStorage.removeItem(`quiz_progress_${fileUrl}`);
+            loadQuestions(fileUrl);
+        }
+    }
+
     loadQuestions(testSelect.value);
 
 </script>
